@@ -42,6 +42,21 @@ inline static void __cpuid(uint32_t code, uint32_t* a, uint32_t* b, uint32_t* c,
 	__asm volatile ("cpuid" : "=a"(*a), "=b"(*b), "=c"(*c), "=d"(*d) : "0"(code), "2"(*c));
 }
 
+static uint32_t get_frequency_from_cpuid(void)
+{
+	char cpu_vendor[3*sizeof(uint32_t)+1] = {[0 ... 3*sizeof(uint32_t)] = 0};
+	uint32_t* bint = (uint32_t*) cpu_vendor;
+	uint32_t cpu_freq[4] = {0};
+	uint32_t max_eax_value;
+
+	__cpuid(0x0, &max_eax_value, bint+0, bint+2, bint+1);
+	if (max_eax_value < 0x16 || strcmp(cpu_vendor, "GenuineIntel") != 0)
+		return 0;
+
+	__cpuid(0x16, cpu_freq+0, cpu_freq+1, cpu_freq+2, cpu_freq+3);
+	return cpu_freq[0]&0xffff;
+}
+
 // Try to determine the frequency from the CPU brand.
 // Code is derived from the manual "Intel Processor
 // Identification and the CPUID Instruction".
@@ -104,6 +119,10 @@ uint32_t get_cpufreq(void)
 	char* match;
 
 #ifdef __x86_64__
+	freq = get_frequency_from_cpuid();
+	if (freq > 0)
+		return freq;
+
 	freq = get_frequency_from_brand();
 	if (freq > 0)
 		return freq;
